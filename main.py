@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -12,8 +11,7 @@ from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
 import xgboost as xgb
 import lightgbm as lgb
-# Если у вас установлена библиотека CatBoost, можно раскомментировать следующую строку:
-# from catboost import CatBoostClassifier
+
 
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, classification_report, confusion_matrix, roc_curve, \
     precision_recall_curve
@@ -22,7 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 # ЗАГРУЗКА ДАННЫХ
 # Замените 'poland_processed.csv' на путь к вашему файлу
-df = pd.read_csv('poland_processed.csv')
+df = pd.read_csv('processed/poland_processed.csv')
 
 # Разделяем данные на признаки (X) и целевую переменную (y)
 X = df.drop(columns=['target'])

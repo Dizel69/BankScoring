@@ -14,22 +14,18 @@ def process_german_numeric(file_path, numeric=True):
     Обработка немецкого датасета.
     Если numeric=True, читается german.data-numeric (числовой вариант),
     иначе можно использовать оригинальный german.data с категориальными значениями.
-    В обоих случаях получаем 20 признаков и целевую переменную (обычно последняя колонка).
-    Приводим столбцы к формату: f1...f20, target.
-    Для числового варианта целевая переменная должна быть преобразована:
-        1 (good) -> 0, 2 (bad) -> 1.
     """
-    sep = r'\s+' if numeric else ' '  # для числового варианта чаще пробелы
+    sep = r'\s+' if numeric else ' '
     df = pd.read_csv(file_path, sep=sep, header=None)
-    # Предположим, что в файле 25 колонок: 24 признака и 1 целевая
+    # Предположим, что в файле 25 колонок: 24 признака + 1 целевая
     num_features = df.shape[1] - 1
     new_columns = [f"f{i}" for i in range(1, num_features + 1)] + ["target"]
     df.columns = new_columns
 
-    # Преобразование целевой переменной: 1 -> 0 (хороший), 2 -> 1 (плохой)
+    # Преобразование целевой переменной: 1 -> 0 (good), 2 -> 1 (bad)
     df["target"] = df["target"].apply(lambda x: 1 if x == 2 else 0)
 
-    # Если есть категориальные признаки (для оригинального датасета), можно закодировать их.
+    # Кодируем категориальные признаки (если есть)
     le = LabelEncoder()
     for col in df.columns:
         if df[col].dtype == object:
@@ -40,9 +36,7 @@ def process_german_numeric(file_path, numeric=True):
 def process_australia(file_path):
     """
     Обработка австралийского датасета (.dat).
-    В файле 14 признаков + целевой атрибут.
-    Переименовываем колонки в f1..f14, target.
-    Предполагается, что разделитель — пробел или табуляция.
+    В файле 14 признаков + целевой атрибут. Разделитель - пробел или табуляция.
     Класс: '+' -> 1, '-' -> 0.
     """
     df = pd.read_csv(file_path, sep=r'\s+', header=None)
@@ -52,7 +46,7 @@ def process_australia(file_path):
     # Преобразование целевой переменной
     df["target"] = df["target"].apply(lambda x: 1 if str(x).strip() == '+' else 0)
 
-    # Кодирование категориальных признаков, если они есть
+    # Кодирование категориальных признаков
     le = LabelEncoder()
     for col in df.columns:
         if df[col].dtype == object:
@@ -62,20 +56,51 @@ def process_australia(file_path):
 
 def process_japan(file_path):
     """
-    Обработка японского датасета (.data).
-    Предполагается, что файл имеет 15 признаков + целевой атрибут.
+    Обработка японского датасета.
+    Часто встречаются варианты: crx.data, или файлы, где разделитель - запятая, либо пробел.
+    Предполагается 15 признаков + целевой атрибут (итого 16 столбцов).
     Класс: '+' -> 1, '-' -> 0.
     """
-    df = pd.read_csv(file_path, sep=r'\s+', header=None)
+
+    # 1) Сначала попробуем прочитать как CSV с запятой:
+    try:
+        df = pd.read_csv(file_path, sep=',', header=None)
+        if df.shape[1] == 1:
+            # Похоже, что данные "склеились" в одну колонку, значит запятая не подходит
+            raise ValueError("CSV with comma gave 1 column, try whitespace.")
+    except:
+        # Если не получилось, пробуем заново с пробелами
+        df = pd.read_csv(file_path, sep=r'\s+', header=None)
+
+    # Теперь у нас должен быть >= 2 столбцов
+    # Убедимся, что в итоге 16 столбцов: 15 фич + 1 таргет
+    if df.shape[1] != 16:
+        raise ValueError(
+            f"Ожидается 16 столбцов (15 фич + 1 таргет), но получено {df.shape[1]}.\n"
+            "Проверьте, что файл действительно японский датасет и что разделитель указан верно."
+        )
+
+    # Переименовываем столбцы
     new_columns = [f"f{i}" for i in range(1, 16)] + ["target"]
     df.columns = new_columns
 
+    # Заменяем '?' на NaN (часто встречается)
+    df.replace('?', np.nan, inplace=True)
+
+    # Преобразуем целевую переменную: '+' -> 1, '-' -> 0
     df["target"] = df["target"].apply(lambda x: 1 if str(x).strip() == '+' else 0)
 
+    # Кодируем категориальные признаки
     le = LabelEncoder()
     for col in df.columns:
         if df[col].dtype == object:
-            df[col] = le.fit_transform(df[col])
+            df[col] = le.fit_transform(df[col].astype(str))
+
+    # Заполним пропуски средними (если есть)
+    for col in df.columns:
+        if col != "target" and df[col].dtype in [float, int]:
+            df[col].fillna(df[col].mean(), inplace=True)
+
     return df
 
 
@@ -83,8 +108,8 @@ def process_taiwan(file_path):
     """
     Обработка тайваньского датасета из Excel (.xls или .xlsx).
     Предполагается, что в файле имеется столбец ID, затем 23 признака и последний столбец — целевая переменная.
-    Убираем ID, переименовываем колонки в f1..f23, target.
     """
+    # Нужно установить 'xlrd' (для .xls) или 'openpyxl' (для .xlsx)
     df = pd.read_excel(file_path, header=1)
     # Удаляем столбец ID, если он есть
     if "ID" in df.columns:
@@ -108,30 +133,24 @@ def process_poland(file_path):
     """
     Обработка польского датасета в формате ARFF.
     В файле описаны 64 числовых признака и целевой атрибут (class) {0,1}.
-    Переименовываем колонки в f1..f64, target.
-    Обработка пропущенных значений: заменяем '?' на np.nan, потом заполняем средним.
     """
-    # Читаем arff-файл через liac-arff
     with open(file_path, 'r', encoding='utf-8') as f:
         arff_data = arff.load(f)
 
-    # Данные в виде списка списков
     data = arff_data['data']
     df = pd.DataFrame(data)
 
-    # Общее число колонок
     num_features = df.shape[1] - 1
     new_columns = [f"f{i}" for i in range(1, num_features + 1)] + ["target"]
     df.columns = new_columns
 
-    # Заменяем пропуски и преобразуем к числовому типу
+    # Заменяем '?' на NaN и приводим к float
     df.replace('?', np.nan, inplace=True)
     for col in df.columns:
         if col != "target":
             df[col] = pd.to_numeric(df[col], errors='coerce')
             df[col].fillna(df[col].mean(), inplace=True)
 
-    # Целевая переменная — оставляем как есть (0 и 1)
     return df
 
 
@@ -156,11 +175,11 @@ def save_dataset(df, name='dataset.csv', out_dir='processed'):
 
 if __name__ == '__main__':
     # Пути к файлам (укажи корректные пути для своих файлов)
-    path_german_numeric = 'data/german.data-numeric'  # немецкий числовой вариант
+    path_german_numeric = 'data/german.data-numeric'
     path_australia = 'data/australian.dat'
     path_japan = 'data/japanese_credit.data'
-    path_taiwan = 'data/default_of_credit_card_clients.xls'
-    path_poland = 'data/1year.arff'
+    path_taiwan = 'data/taiwan.xls'
+    path_poland = 'data/Polish_3year.arff'
 
     # Обработка каждого датасета
     try:

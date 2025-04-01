@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Загружаем данные
-df = pd.read_csv("dataset.csv")
+df = pd.read_csv('verdata/german_processed.csv')
 
 # Выводим инфо по данным
 print(df.info())
